@@ -16,37 +16,27 @@ from scenic.simulators.utils.colors import Color
 
 simulator NewtonianSimulator(network, render=render)
 
-class NewtonianActor(DrivingObject):
-    throttle: 0
-    steer: 0
-    brake: 0
-    hand_brake: 0
-    reverse: 0
+class NewtonianActor(FlyingObject):
+    thrust: 0
+    position: Vector3
+    velocity: Vector3
+    quaternion: Quaternion
+    omega: Vector3
+    # todo: fill in vehicle properties
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._control = None    # used internally to accumulate control updates
 
     def setPosition(self, pos, elevation):
+        # todo: fix broken elevation input
         self.position = pos
 
     def setVelocity(self, vel):
         self.velocity = vel
 
-    def setThrottle(self, throttle):
-        self.throttle = throttle
-
-    def setSteering(self, steering):
-        self.steer = steering
-
-    def setBraking(self, braking):
-        self.brake = braking
-
-    def setHandbrake(self, handbrake):
-        self.hand_brake = handbrake
-
-    def setReverse(self, reverse):
-        self.reverse = reverse
+    def setThrust(self, thrust):
+        self.thrust = thrust
 
 class Vehicle(Vehicle, NewtonianActor):
     pass
@@ -60,10 +50,7 @@ class Multirotor(Vehicle, Steers):
     def isCar(self):
         return False
 
-class Pedestrian(Pedestrian, NewtonianActor, Walks):
-    pass
-
-class Debris:
+class Obstacles:
     """Abstract class for debris scattered randomly in the workspace."""
     position: new Point in workspace
     yaw: Range(0, 360) deg
