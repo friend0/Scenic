@@ -11,6 +11,9 @@ format:
 	isort .
 	black .
 
+serve:
+	python ./src/servers/nats_server.py
+
 .PHONY: clean
 clean:
 	-rm $(PARSER)
