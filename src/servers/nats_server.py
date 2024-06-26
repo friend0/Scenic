@@ -90,12 +90,32 @@ async def main():
         scene, _ = scenario.generate()
         for obj in scene.objects:
             # for now, one of box, cylinder, cone, spheroid
-            request = {
-                "shape": shape_map.get(type(obj.shape).__name__, "BoxGeometry"),
-                "orientation": [obj.yaw, obj.pitch, obj.roll],
-                "position": obj.toVector().coordinates,
-            }
-            await nc.publish("meshcat.geometries", json.dumps(request).encode())
+            shape = shape_map.get(type(obj.shape).__name__, "BoxGeometry")
+            print("SHAPE", shape)
+            if shape == "BoxGeometry":
+                request = {
+                    "type": shape,
+                    # "orientation": [obj.yaw, obj.pitch, obj.roll],
+                    # "position": obj.toVector().coordinates,
+                    "height": 1,
+                    "width": 1,
+                    "depth": 1,
+                }
+            elif shape == "SphereGeometry":
+                request = {
+                    "type": shape,
+                    # "orientation": [obj.yaw, obj.pitch, obj.roll],
+                    # "position": obj.toVector().coordinates,
+                    "radius": 2,
+                }
+            else:
+                print("got ", shape)
+                request = {}
+            print(json.dumps(request))
+            await nc.publish(
+                "meshcat.geometries.bg", json.dumps(request).encode("utf-8")
+            )
+            await nc.flush()
 
     # async def file_message_handler(msg):
     #     subject = msg.subject
