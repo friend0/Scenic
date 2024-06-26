@@ -5,9 +5,13 @@ import pathlib
 import signal
 import sys
 import tempfile
+import json
 
 import nats
 import scenic
+from nats.aio.client import Client
+
+from typing import Optional
 
 
 def show_usage():
@@ -49,44 +53,12 @@ async def main():
     async def reconnected_cb():
         print("Reconnected to NATS")
 
-    async def string_message_handler(msg):
-        """The scenic string handler processes scenic programs sent over the NATS bus as strings
-
-        Args:
-            msg (nats.Message): the NATS message receved for this handler
-        """
-        subject = msg.subject
-        reply = msg.reply
-        data = msg.data
-        # print(f"Received messaged on '{ subject } {reply}': {decoded_data}")
-        print(str(data))
-        scenario = scenic.scenarioFromString(base64.b64decode(data).decode("utf-8"))
-        scene, _ = scenario.generate()
-        for obj in scene.objects[:1]:
-            # for each of the objects, get its shape, and post a request to the object tree
-            # use the
-            for attr in dir(obj):
-                print(attr)
-
-    async def file_message_handler(msg):
-        subject = msg.subject
-        reply = msg.reply
-        data = msg.data.decode()
-        print(f"Received messaged on '{ subject } {reply}': {data}")
-
-        scenario = scenic.scenarioFromFile(msg.data)
-        with open(pathlib.Path(tempfile.gettempdir()) / "test_scene", "rb") as f:
-            data = f.read()
-        scenario = scenic.scenarioFromFile(data)
-        print(f"Got scenario: { scenario }")
-
+    nc: Optional[Client] = None
     options = {
         "error_cb": error_cb,
         "closed_cb": closed_cb,
         "reconnected_cb": reconnected_cb,
     }
-
-    nc = None
     try:
         if len(args.servers) > 0:
             options["servers"] = args.servers
@@ -96,6 +68,47 @@ async def main():
         show_usage_and_die()
         return
 
+    shape_map = {
+        "SpheroidShape": "SphereGeometry",
+        "BoxShape": "BoxGeometry",
+        "ConeShape": "ConeGeometry",
+        "CylinderShape": "CylinderGeometry",
+    }
+
+    async def string_message_handler(msg):
+        """The scenic string handler processes scenic programs sent over the NATS bus as strings
+
+        Args:
+            msg (nats.Message): the NATS message receved for this handler
+        """
+        subject = msg.subject
+        reply = msg.reply
+        data = msg.data
+        print(f"Received messaged on '{ subject } {reply}': {data}")
+
+        scenario = scenic.scenarioFromString(base64.b64decode(data).decode("utf-8"))
+        scene, _ = scenario.generate()
+        for obj in scene.objects:
+            # for now, one of box, cylinder, cone, spheroid
+            request = {
+                "shape": shape_map.get(type(obj.shape).__name__, "BoxGeometry"),
+                "orientation": [obj.yaw, obj.pitch, obj.roll],
+                "position": obj.toVector().coordinates,
+            }
+            await nc.publish("meshcat.geometries", json.dumps(request).encode())
+
+    # async def file_message_handler(msg):
+    #     subject = msg.subject
+    #     reply = msg.reply
+    #     data = msg.data.decode()
+    #     print(f"Received messaged on '{ subject } {reply}': {data}")
+    #
+    #     scenario = scenic.scenarioFromFile(msg.data)
+    #     with open(pathlib.Path(tempfile.gettempdir()) / "test_scene", "rb") as f:
+    #         data = f.read()
+    #     scenario = scenic.scenarioFromFile(data)
+    #     print(f"Got scenario: { scenario }")
+    #
     def signal_handler():
         if nc and nc.is_closed:
             return
@@ -109,7 +122,7 @@ async def main():
     await nc.subscribe(
         "sunset.scenic.generate.string", "workers", string_message_handler
     )
-    await nc.subscribe("sunset.scenic.generate.file", "workers", file_message_handler)
+    # await nc.subscribe("sunset.scenic.generate.file", "workers", file_message_handler)
 
 
 if __name__ == "__main__":
